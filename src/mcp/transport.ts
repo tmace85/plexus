@@ -30,6 +30,9 @@ export interface McpHandlerDeps {
  * The caller must have already validated the user token and attached
  * the McpAuth context via c.set('mcpAuth', ...).
  */
+/** Upper bound for a single POST /mcp body. */
+export const MAX_MCP_REQUEST_BODY_BYTES = 1024 * 1024;
+
 export async function handleMcpRequest(
   c: Context,
   deps: McpHandlerDeps,
@@ -38,6 +41,10 @@ export async function handleMcpRequest(
   const server = buildMcpServer({ ...deps, auth });
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined, // stateless
+    // GHSA-f897-62hf-6gxq / GHSA-46jr-4wx8-v453: cap the JSON-RPC body
+    // explicitly instead of relying on the SDK default (4 MiB). The
+    // largest legitimate call (entity body + 64 KB attributes) is far below.
+    maxRequestBodySize: MAX_MCP_REQUEST_BODY_BYTES,
   });
   await server.connect(transport);
   return transport.handleRequest(c.req.raw);

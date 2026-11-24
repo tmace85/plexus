@@ -17,7 +17,13 @@
  */
 
 import { describe, test, expect } from 'vitest';
-import { cleanObject, isAttributesWithinSize, MAX_ATTRIBUTE_JSON_BYTES } from '../clean.js';
+import {
+  cleanObject,
+  isAttributesWithinDepth,
+  isAttributesWithinSize,
+  MAX_ATTRIBUTE_DEPTH,
+  MAX_ATTRIBUTE_JSON_BYTES,
+} from '../clean.js';
 
 describe('cleanObject — happy path', () => {
   test('returns {} for null', () => {
@@ -170,5 +176,51 @@ describe('isAttributesWithinSize — MOD-7 API-layer guard', () => {
 
   test('MAX_ATTRIBUTE_JSON_BYTES is 64 KB per audit recommendation', () => {
     expect(MAX_ATTRIBUTE_JSON_BYTES).toBe(64_000);
+  });
+});
+
+describe('isAttributesWithinDepth — CVE-2026-121423 guard', () => {
+  const nested = (levels: number): unknown => {
+    let v: unknown = 'leaf';
+    for (let i = 0; i < levels; i++) v = [v];
+    return v;
+  };
+
+  test('null, undefined and primitives pass', () => {
+    expect(isAttributesWithinDepth(null)).toBe(true);
+    expect(isAttributesWithinDepth(undefined)).toBe(true);
+    expect(isAttributesWithinDepth(42)).toBe(true);
+  });
+
+  test('typical attributes pass', () => {
+    expect(isAttributesWithinDepth({ tags: ['a', 'b'], meta: { owner: 'tim' } })).toBe(true);
+  });
+
+  test('exactly MAX_ATTRIBUTE_DEPTH levels pass, one more is rejected', () => {
+    expect(isAttributesWithinDepth(nested(MAX_ATTRIBUTE_DEPTH))).toBe(true);
+    expect(isAttributesWithinDepth(nested(MAX_ATTRIBUTE_DEPTH + 1))).toBe(false);
+  });
+
+  test('deep nesting that fits the 64 KB size cap is rejected', () => {
+    const payload = '['.repeat(20_000) + ']'.repeat(20_000);
+    expect(isAttributesWithinSize(payload)).toBe(true);
+    expect(isAttributesWithinDepth(payload)).toBe(false);
+    expect(isAttributesWithinDepth(JSON.parse(payload))).toBe(false);
+  });
+
+  test('deep objects are rejected too', () => {
+    let v: Record<string, unknown> = {};
+    for (let i = 0; i < MAX_ATTRIBUTE_DEPTH + 1; i++) v = { k: v };
+    expect(isAttributesWithinDepth(v)).toBe(false);
+  });
+
+  test('non-JSON strings pass (cleanObject collapses them to {})', () => {
+    expect(isAttributesWithinDepth('not json')).toBe(true);
+  });
+
+  test('circular references are rejected without hanging', () => {
+    const a: Record<string, unknown> = {};
+    a.self = a;
+    expect(isAttributesWithinDepth(a)).toBe(false);
   });
 });

@@ -51,6 +51,44 @@ export const MAX_ATTRIBUTE_JSON_BYTES = 64_000;
  * safest behaviour at the API boundary is a clean rejection with a
  * structured validation error instead of a mysterious TypeError later.
  */
+/**
+ * Maximum nesting depth (objects/arrays) of an attributes/properties
+ * payload. The 64 KB size cap alone still admits ~32k levels of
+ * `[[[...]]]`, which crashes SurrealDB < 3.3.0 on SELECT/EXPORT via
+ * stack overflow (CVE-2026-121423) and can blow the Node stack in the
+ * recursive `cleanObject`. Real attributes are 1-3 levels deep.
+ */
+export const MAX_ATTRIBUTE_DEPTH = 32;
+
+/**
+ * Check whether an attributes payload nests at most `maxDepth` levels of
+ * objects/arrays. JSON strings are parsed first, mirroring `cleanObject`.
+ * Iterative, so the check itself cannot overflow the stack.
+ */
+export function isAttributesWithinDepth(input: unknown, maxDepth: number = MAX_ATTRIBUTE_DEPTH): boolean {
+  let root = input;
+  if (typeof input === 'string') {
+    try {
+      root = JSON.parse(input);
+    } catch (e) {
+      // Not JSON: cleanObject collapses it to {}. A RangeError means the
+      // parser itself ran out of stack — that is exactly what we reject.
+      return !(e instanceof RangeError);
+    }
+  }
+  const seen = new WeakSet<object>();
+  const stack: Array<[unknown, number]> = [[root, 0]];
+  while (stack.length > 0) {
+    const [value, depth] = stack.pop()!;
+    if (value === null || typeof value !== 'object') continue;
+    if (depth >= maxDepth) return false;
+    if (seen.has(value)) return false; // circular — never valid JSON
+    seen.add(value);
+    for (const child of Object.values(value)) stack.push([child, depth + 1]);
+  }
+  return true;
+}
+
 export function isAttributesWithinSize(input: unknown): boolean {
   if (input == null) return true;
   if (typeof input === 'string') {

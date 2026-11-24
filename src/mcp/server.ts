@@ -49,6 +49,9 @@ export interface McpDeps {
   readonly auth: McpAuth;
 }
 
+/** Max combined array elements + object members in one tools/call `arguments`. */
+export const MAX_TOOL_INPUT_ELEMENTS = 10_000;
+
 export function buildMcpServer(deps: McpDeps): McpServer {
   const server = new McpServer(
     {
@@ -59,6 +62,10 @@ export function buildMcpServer(deps: McpDeps): McpServer {
       capabilities: {
         tools: {},
       },
+      // GHSA-46jr-4wx8-v453 (CVE-2026-111768): without this cap a small
+      // tools/call payload with many tiny array elements OOMs the process
+      // during argument validation. Plexus tools take a handful of fields.
+      maxToolInputElements: MAX_TOOL_INPUT_ELEMENTS,
       instructions:
         'Plexus — on-prem knowledge graph for AI agents. Use save_entity to store knowledge, link_entities to connect it, search_entities to find it, and get_related to traverse the graph.',
     }

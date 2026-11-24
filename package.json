@@ -36,12 +36,12 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@hono/node-server": "^1.19.13",
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@hono/node-server": "^1.19.19",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "@simplewebauthn/server": "^13.3.0",
-    "hono": "^4.12.12",
+    "hono": "^4.13.21",
     "surrealdb": "^2.0.3",
-    "zod": "^4.3.6"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

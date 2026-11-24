@@ -25,7 +25,12 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import type { Entity } from '../db/repositories/entities.js';
 import { VersionConflictError } from '../db/repositories/entities.js';
-import { isAttributesWithinSize, MAX_ATTRIBUTE_JSON_BYTES } from '../db/util/clean.js';
+import {
+  isAttributesWithinDepth,
+  isAttributesWithinSize,
+  MAX_ATTRIBUTE_DEPTH,
+  MAX_ATTRIBUTE_JSON_BYTES,
+} from '../db/util/clean.js';
 import {
   HandoffValidationError,
   isHandoffFact,
@@ -57,6 +62,9 @@ function boundedAttributes() {
     .any()
     .refine(isAttributesWithinSize, {
       message: `attributes exceed the maximum JSON size of ${MAX_ATTRIBUTE_JSON_BYTES} bytes`,
+    })
+    .refine((v) => isAttributesWithinDepth(v), {
+      message: `attributes exceed the maximum nesting depth of ${MAX_ATTRIBUTE_DEPTH}`,
     })
     .optional();
 }
